@@ -1,0 +1,28 @@
+name: Build SuperVoice APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Memungkinkan tombol "Run workflow" manual di GitHub
+
+jobs:
+  build:
+    name: Build & Export APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Mengambil kode dari repositori
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Setup JDK 17 (Standar resmi Android modern)
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 3. Setup Gradle Environment
