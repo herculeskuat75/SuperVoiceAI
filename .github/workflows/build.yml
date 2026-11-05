@@ -1,49 +1,60 @@
-name: Build SuperVoice APK
+name: Universal APK Builder & Release
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build & Export APK
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Extract Project ZIP
-        run: unzip -q SuperVoiceAI-Project.zip -d SuperVoiceAI
-
-      - name: Create gradle.properties
+      - name: Find and Extract ZIP
         run: |
-          cat > SuperVoiceAI/gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          kotlin.code.style=official
-          EOF
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP" ]; then echo "ZIP tidak ditemukan!"; exit 1; fi
+          echo "Menggunakan ZIP: $ZIP"
+          mkdir -p ./temp_project
+          unzip -q "$ZIP" -d ./temp_project
+          
+          SETTINGS=$(find ./temp_project -name "settings.gradle*" | head -n 1)
+          if [ -z "$SETTINGS" ]; then echo "settings.gradle tidak ditemukan!"; exit 1; fi
+          PROJ_DIR=$(dirname "$SETTINGS")
+          echo "PROJ_DIR=$PROJ_DIR" >> $GITHUB_ENV
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
+          java-version: '17'
 
       - name: Build Debug APK
-        working-directory: SuperVoiceAI
-        run: gradle assembleDebug --stacktrace
+        working-directory: ${{ env.PROJ_DIR }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find ${{ env.PROJ_DIR }} -path "*/build/outputs/apk/debug/*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then echo "APK gagal dibuat."; exit 1; fi
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+          echo "APK ditemukan di: $APK_PATH"
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v1
         with:
-          name: SuperVoiceAI-Debug-APK
-          path: SuperVoiceAI/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          tag_name: "build-${{ github.run_number }}"
+          name: "APK Build ${{ github.run_number }}"
+          files: ${{ env.APK_PATH }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
