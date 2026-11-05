@@ -3,9 +3,7 @@ name: Build SuperVoice APK
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-  workflow_dispatch: # Memungkinkan tombol "Run workflow" manual di GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,16 +11,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Mengambil kode dari repositori
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Setup JDK 17 (Standar resmi Android modern)
+      - name: Extract Project ZIP
+        run: unzip -q SuperVoiceAI-Project.zip -d SuperVoiceAI
+
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      # 3. Setup Gradle Environment
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Debug APK
+        working-directory: SuperVoiceAI
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperVoiceAI-Debug-APK
+          path: SuperVoiceAI/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
